@@ -3,9 +3,9 @@
 
 #define TEXT_LEN 256
 #define NAME_LEN 50
+#define PATH_LEN 100
 #define INITIAL_CAPACITY 10
 
-// Answer Structure
 typedef struct {
     int id;
     int question_id;
@@ -15,7 +15,6 @@ typedef struct {
     int upvotes;
 } Answer;
 
-// Question Structure
 typedef struct {
     int id;
     int author_id;
@@ -23,9 +22,9 @@ typedef struct {
     char title[TEXT_LEN];
     char category[NAME_LEN];
     int answer_count;
+    char image_path[PATH_LEN]; // Question Image / Diagram Attachment
 } Question;
 
-// Dynamic Storage Pointer Allocation
 extern Question *questions;
 extern int question_count;
 extern int question_capacity;
@@ -47,5 +46,6 @@ void view_question_details();
 void answer_question();
 void upvote_answer();
 void search_questions();
+void admin_delete_question();
 
 #endif
