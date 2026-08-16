@@ -1,51 +1,39 @@
 #ifndef QA_H
 #define QA_H
 
-#define TEXT_LEN 256
-#define NAME_LEN 50
-#define PATH_LEN 100
-#define INITIAL_CAPACITY 10
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include "user.h"
 
 typedef struct {
-    int id;
     int question_id;
-    int author_id;
-    char author_name[NAME_LEN];
-    char body[TEXT_LEN];
+    char author_username[50];
+    char title[150];
+    char category[50];
+} Question;
+
+typedef struct {
+    int answer_id;
+    int question_id;
+    char author_username[50];
+    char body[500];
+    char image_path[256];
     int upvotes;
 } Answer;
 
-typedef struct {
-    int id;
-    int author_id;
-    char author_name[NAME_LEN];
-    char title[TEXT_LEN];
-    char category[NAME_LEN];
-    int answer_count;
-    char image_path[PATH_LEN]; // Question Image / Diagram Attachment
-} Question;
+// Function Prototypes
+void post_question(Question **questions, int *q_count, int *q_cap, const char *username);
+void post_answer(Answer **answers, int *a_count, int *a_cap, int q_id, const char *username);
+void browse_questions(Question *questions, int q_count);
+void view_question_details(Question *questions, int q_count, Answer *answers, int a_count, int q_id);
+void upvote_answer(Answer *answers, int a_count, User *users, int user_count, int a_id);
+void search_questions(Question *questions, int q_count, const char *keyword);
+void display_leaderboard(User *users, int user_count);
 
-extern Question *questions;
-extern int question_count;
-extern int question_capacity;
-
-extern Answer *answers;
-extern int answer_count;
-extern int answer_capacity;
-
-void init_qa_system();
-void cleanup_qa_system();
-void load_questions();
-void save_questions();
-void load_answers();
-void save_answers();
-
-void post_question();
-void list_all_questions();
-void view_question_details();
-void answer_question();
-void upvote_answer();
-void search_questions();
-void admin_delete_question();
+void save_questions(Question *questions, int q_count);
+void load_questions(Question **questions, int *q_count, int *q_cap);
+void save_answers(Answer *answers, int a_count);
+void load_answers(Answer **answers, int *a_count, int *a_cap);
 
 #endif
