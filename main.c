@@ -18,9 +18,9 @@ int main() {
 
     int choice;
     while (1) {
-        printf("\n======================================================\n");
-        printf("   KNOWLEDGE SHARING PLATFORM (Admin, Hash, Images)   \n");
-        printf("======================================================\n");
+        printf("\n=============================\n");
+        printf("   KNOWLEDGE SHARING PLATFORM  \n");
+        printf("===============================\n");
 
         UserRole current_role = 0;
         if (current_user_id != -1) {
