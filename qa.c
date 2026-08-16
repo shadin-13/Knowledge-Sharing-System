@@ -62,13 +62,14 @@ void load_questions() {
     char line[512];
     while (fgets(line, sizeof(line), fp)) {
         ensure_question_capacity();
-        sscanf(line, "%d;%d;%[^;];%[^;];%[^;];%d\n",
+        sscanf(line, "%d;%d;%[^;];%[^;];%[^;];%d;%[^\n]\n",
                &questions[question_count].id,
                &questions[question_count].author_id,
                questions[question_count].author_name,
                questions[question_count].category,
                questions[question_count].title,
-               &questions[question_count].answer_count);
+               &questions[question_count].answer_count,
+               questions[question_count].image_path);
         question_count++;
     }
     fclose(fp);
@@ -79,13 +80,14 @@ void save_questions() {
     if (!fp) return;
 
     for (int i = 0; i < question_count; i++) {
-        fprintf(fp, "%d;%d;%s;%s;%s;%d\n",
+        fprintf(fp, "%d;%d;%s;%s;%s;%d;%s\n",
                 questions[i].id,
                 questions[i].author_id,
                 questions[i].author_name,
                 questions[i].category,
                 questions[i].title,
-                questions[i].answer_count);
+                questions[i].answer_count,
+                questions[i].image_path);
     }
     fclose(fp);
 }
@@ -150,6 +152,12 @@ void post_question() {
     printf("Title: ");
     get_string_input(q.title, TEXT_LEN);
 
+    printf("Attach Image/Diagram Path (Press Enter if none): ");
+    get_string_input(q.image_path, PATH_LEN);
+    if (strlen(q.image_path) == 0) {
+        strcpy(q.image_path, "none");
+    }
+
     questions[question_count++] = q;
     save_questions();
     printf("\n[SUCCESS] Question posted (ID: %d)\n", q.id);
@@ -160,15 +168,15 @@ void list_all_questions() {
         printf("\n[INFO] No questions found.\n");
         return;
     }
-    printf("\n========================================================================\n");
-    printf("%-5s | %-12s | %-15s | %-30s | %-7s\n", "ID", "Category", "Author", "Title", "Answers");
-    printf("========================================================================\n");
+    printf("\n========================================================================================\n");
+    printf("%-5s | %-12s | %-12s | %-25s | %-7s | %-15s\n", "ID", "Category", "Author", "Title", "Answers", "Attachment");
+    printf("========================================================================================\n");
     for (int i = 0; i < question_count; i++) {
-        printf("%-5d | %-12s | %-15s | %-30s | %-7d\n",
+        printf("%-5d | %-12s | %-12s | %-25s | %-7d | %-15s\n",
                questions[i].id, questions[i].category, questions[i].author_name,
-               questions[i].title, questions[i].answer_count);
+               questions[i].title, questions[i].answer_count, questions[i].image_path);
     }
-    printf("========================================================================\n");
+    printf("========================================================================================\n");
 }
 
 void view_question_details() {
@@ -189,8 +197,9 @@ void view_question_details() {
         return;
     }
 
-    printf("\nQUESTION #%d [%s]\nTitle : %s\nAuthor: %s\n",
-           questions[q_idx].id, questions[q_idx].category, questions[q_idx].title, questions[q_idx].author_name);
+    printf("\nQUESTION #%d [%s]\nTitle     : %s\nAuthor    : %s\nAttachment: %s\n",
+           questions[q_idx].id, questions[q_idx].category, questions[q_idx].title, 
+           questions[q_idx].author_name, questions[q_idx].image_path);
     printf("----------------------------------------------------\nANSWERS:\n");
 
     int count = 0;
@@ -294,9 +303,45 @@ void search_questions() {
     int matches = 0;
     for (int i = 0; i < question_count; i++) {
         if (strstr(questions[i].title, keyword) != NULL || strstr(questions[i].category, keyword) != NULL) {
-            printf("ID: %d | [%s] %s (By %s)\n", questions[i].id, questions[i].category, questions[i].title, questions[i].author_name);
+            printf("ID: %d | [%s] %s (By %s) [Image: %s]\n", 
+                   questions[i].id, questions[i].category, questions[i].title, 
+                   questions[i].author_name, questions[i].image_path);
             matches++;
         }
     }
     if (matches == 0) printf("No matching questions found.\n");
+}
+
+void admin_delete_question() {
+    int cur_idx = -1;
+    for(int i=0; i<user_count; i++) {
+        if(users[i].id == current_user_id) { cur_idx = i; break; }
+    }
+
+    if (cur_idx == -1 || users[cur_idx].role != ROLE_ADMIN) {
+        printf("\n[ACCESS DENIED] Admin privileges required!\n");
+        return;
+    }
+
+    int q_id;
+    printf("\n--- Admin: Delete Question ---\nEnter Question ID to Delete: ");
+    if (scanf("%d", &q_id) != 1) { clear_input_buffer(); return; }
+    clear_input_buffer();
+
+    int q_idx = -1;
+    for (int i = 0; i < question_count; i++) {
+        if (questions[i].id == q_id) { q_idx = i; break; }
+    }
+
+    if (q_idx == -1) {
+        printf("\n[ERROR] Question not found!\n");
+        return;
+    }
+
+    for (int i = q_idx; i < question_count - 1; i++) {
+        questions[i] = questions[i + 1];
+    }
+    question_count--;
+    save_questions();
+    printf("\n[SUCCESS] Question ID %d removed by Admin.\n", q_id);
 }
