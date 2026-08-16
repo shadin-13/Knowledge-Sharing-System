@@ -1,347 +1,223 @@
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
 #include "qa.h"
-#include "user.h"
 
-Question *questions = NULL;
-int question_count = 0;
-int question_capacity = INITIAL_CAPACITY;
-
-Answer *answers = NULL;
-int answer_count = 0;
-int answer_capacity = INITIAL_CAPACITY;
-
-static void clear_input_buffer() {
-    int c;
-    while ((c = getchar()) != '\n' && c != EOF);
-}
-
-static void get_string_input(char *buffer, int size) {
-    fgets(buffer, size, stdin);
-    buffer[strcspn(buffer, "\n")] = 0;
-}
-
-void init_qa_system() {
-    questions = (Question *)malloc(question_capacity * sizeof(Question));
-    answers = (Answer *)malloc(answer_capacity * sizeof(Answer));
-    if (!questions || !answers) {
-        perror("Memory allocation failed for QA system");
-        exit(EXIT_FAILURE);
+void post_question(Question **questions, int *q_count, int *q_cap, const char *username) {
+    if (*q_count >= *q_cap) {
+        *q_cap *= 2;
+        *questions = (Question*)realloc(*questions, (*q_cap) * sizeof(Question));
     }
+
+    Question new_q;
+    new_q.question_id = *q_count + 1;
+    strcpy(new_q.author_username, username);
+
+    getchar(); // Clear newline buffer
+    printf("\nEnter Question Title: ");
+    fgets(new_q.title, sizeof(new_q.title), stdin);
+    new_q.title[strcspn(new_q.title, "\n")] = 0;
+
+    printf("Enter Category/Tag: ");
+    fgets(new_q.category, sizeof(new_q.category), stdin);
+    new_q.category[strcspn(new_q.category, "\n")] = 0;
+
+    (*questions)[*q_count] = new_q;
+    (*q_count)++;
+
+    save_questions(*questions, *q_count);
+    printf("Question posted successfully!\n");
 }
 
-void cleanup_qa_system() {
-    if (questions) free(questions);
-    if (answers) free(answers);
-    questions = NULL;
-    answers = NULL;
-}
-
-static void ensure_question_capacity() {
-    if (question_count >= question_capacity) {
-        question_capacity *= 2;
-        questions = (Question *)realloc(questions, question_capacity * sizeof(Question));
-        if (!questions) exit(EXIT_FAILURE);
+void post_answer(Answer **answers, int *a_count, int *a_cap, int q_id, const char *username) {
+    if (*a_count >= *a_cap) {
+        *a_cap *= 2;
+        *answers = (Answer*)realloc(*answers, (*a_cap) * sizeof(Answer));
     }
-}
 
-static void ensure_answer_capacity() {
-    if (answer_count >= answer_capacity) {
-        answer_capacity *= 2;
-        answers = (Answer *)realloc(answers, answer_capacity * sizeof(Answer));
-        if (!answers) exit(EXIT_FAILURE);
+    Answer new_a;
+    new_a.answer_id = *a_count + 1;
+    new_a.question_id = q_id;
+    strcpy(new_a.author_username, username);
+    new_a.upvotes = 0;
+
+    getchar(); // Clear newline buffer
+    printf("\nEnter Answer Content: ");
+    fgets(new_a.body, sizeof(new_a.body), stdin);
+    new_a.body[strcspn(new_a.body, "\n")] = 0;
+
+    printf("Attach Image/Diagram Path for Answer (or 'None'): ");
+    fgets(new_a.image_path, sizeof(new_a.image_path), stdin);
+    new_a.image_path[strcspn(new_a.image_path, "\n")] = 0;
+
+    if (strlen(new_a.image_path) == 0) {
+        strcpy(new_a.image_path, "None");
     }
+
+    (*answers)[*a_count] = new_a;
+    (*a_count)++;
+
+    save_answers(*answers, *a_count);
+    printf("Answer posted successfully!\n");
 }
 
-void load_questions() {
-    FILE *fp = fopen("questions.txt", "r");
-    if (!fp) return;
-
-    question_count = 0;
-    char line[512];
-    while (fgets(line, sizeof(line), fp)) {
-        ensure_question_capacity();
-        sscanf(line, "%d;%d;%[^;];%[^;];%[^;];%d;%[^\n]\n",
-               &questions[question_count].id,
-               &questions[question_count].author_id,
-               questions[question_count].author_name,
-               questions[question_count].category,
-               questions[question_count].title,
-               &questions[question_count].answer_count,
-               questions[question_count].image_path);
-        question_count++;
-    }
-    fclose(fp);
-}
-
-void save_questions() {
-    FILE *fp = fopen("questions.txt", "w");
-    if (!fp) return;
-
-    for (int i = 0; i < question_count; i++) {
-        fprintf(fp, "%d;%d;%s;%s;%s;%d;%s\n",
-                questions[i].id,
-                questions[i].author_id,
-                questions[i].author_name,
-                questions[i].category,
-                questions[i].title,
-                questions[i].answer_count,
-                questions[i].image_path);
-    }
-    fclose(fp);
-}
-
-void load_answers() {
-    FILE *fp = fopen("answers.txt", "r");
-    if (!fp) return;
-
-    answer_count = 0;
-    char line[512];
-    while (fgets(line, sizeof(line), fp)) {
-        ensure_answer_capacity();
-        sscanf(line, "%d;%d;%d;%[^;];%[^;];%d\n",
-               &answers[answer_count].id,
-               &answers[answer_count].question_id,
-               &answers[answer_count].author_id,
-               answers[answer_count].author_name,
-               answers[answer_count].body,
-               &answers[answer_count].upvotes);
-        answer_count++;
-    }
-    fclose(fp);
-}
-
-void save_answers() {
-    FILE *fp = fopen("answers.txt", "w");
-    if (!fp) return;
-
-    for (int i = 0; i < answer_count; i++) {
-        fprintf(fp, "%d;%d;%d;%s;%s;%d\n",
-                answers[i].id,
-                answers[i].question_id,
-                answers[i].author_id,
-                answers[i].author_name,
-                answers[i].body,
-                answers[i].upvotes);
-    }
-    fclose(fp);
-}
-
-void post_question() {
-    if (current_user_id == -1) {
-        printf("\n[ERROR] Login required to ask a question!\n");
+void browse_questions(Question *questions, int q_count) {
+    printf("\n================ ALL QUESTIONS ================\n");
+    if (q_count == 0) {
+        printf("No questions posted yet.\n");
         return;
     }
-    ensure_question_capacity();
+    for (int i = 0; i < q_count; i++) {
+        printf("[%d] %s (Tag: %s) - Posted by: %s\n", 
+               questions[i].question_id, questions[i].title, 
+               questions[i].category, questions[i].author_username);
+    }
+}
 
-    Question q;
-    q.id = 100 + question_count + 1;
-    q.author_id = current_user_id;
-    q.answer_count = 0;
-
-    for (int i = 0; i < user_count; i++) {
-        if (users[i].id == current_user_id) {
-            strcpy(q.author_name, users[i].username);
+void view_question_details(Question *questions, int q_count, Answer *answers, int a_count, int q_id) {
+    Question *q = NULL;
+    for (int i = 0; i < q_count; i++) {
+        if (questions[i].question_id == q_id) {
+            q = &questions[i];
             break;
         }
     }
 
-    printf("\n--- Ask a Question ---\nCategory: ");
-    get_string_input(q.category, NAME_LEN);
-    printf("Title: ");
-    get_string_input(q.title, TEXT_LEN);
-
-    printf("Attach Image/Diagram Path (Press Enter if none): ");
-    get_string_input(q.image_path, PATH_LEN);
-    if (strlen(q.image_path) == 0) {
-        strcpy(q.image_path, "none");
-    }
-
-    questions[question_count++] = q;
-    save_questions();
-    printf("\n[SUCCESS] Question posted (ID: %d)\n", q.id);
-}
-
-void list_all_questions() {
-    if (question_count == 0) {
-        printf("\n[INFO] No questions found.\n");
-        return;
-    }
-    printf("\n========================================================================================\n");
-    printf("%-5s | %-12s | %-12s | %-25s | %-7s | %-15s\n", "ID", "Category", "Author", "Title", "Answers", "Attachment");
-    printf("========================================================================================\n");
-    for (int i = 0; i < question_count; i++) {
-        printf("%-5d | %-12s | %-12s | %-25s | %-7d | %-15s\n",
-               questions[i].id, questions[i].category, questions[i].author_name,
-               questions[i].title, questions[i].answer_count, questions[i].image_path);
-    }
-    printf("========================================================================================\n");
-}
-
-void view_question_details() {
-    int q_id, q_idx = -1;
-    printf("\nEnter Question ID: ");
-    if (scanf("%d", &q_id) != 1) {
-        clear_input_buffer();
-        return;
-    }
-    clear_input_buffer();
-
-    for (int i = 0; i < question_count; i++) {
-        if (questions[i].id == q_id) { q_idx = i; break; }
-    }
-
-    if (q_idx == -1) {
-        printf("\n[ERROR] Question not found!\n");
+    if (!q) {
+        printf("Question not found!\n");
         return;
     }
 
-    printf("\nQUESTION #%d [%s]\nTitle     : %s\nAuthor    : %s\nAttachment: %s\n",
-           questions[q_idx].id, questions[q_idx].category, questions[q_idx].title, 
-           questions[q_idx].author_name, questions[q_idx].image_path);
-    printf("----------------------------------------------------\nANSWERS:\n");
+    printf("\n-----------------------------------------------\n");
+    printf("QUESTION ID: %d\nTitle: %s\nCategory: %s\nAuthor: %s\n", 
+           q->question_id, q->title, q->category, q->author_username);
+    printf("------------------- ANSWERS -------------------\n");
 
-    int count = 0;
-    for (int i = 0; i < answer_count; i++) {
+    int found_answers = 0;
+    for (int i = 0; i < a_count; i++) {
         if (answers[i].question_id == q_id) {
-            printf("  [%d] By %s (Upvotes: %d)\n      \"%s\"\n\n",
-                   answers[i].id, answers[i].author_name, answers[i].upvotes, answers[i].body);
+            found_answers++;
+            printf("Ans ID: %d | Author: %s | Upvotes: %d\n", answers[i].answer_id, answers[i].author_username, answers[i].upvotes);
+            printf("Content: %s\n", answers[i].body);
+            if (strcmp(answers[i].image_path, "None") != 0 && strlen(answers[i].image_path) > 0) {
+                printf("Attached Diagram/Image: %s\n", answers[i].image_path);
+            }
+            printf("-----------------------------------------------\n");
+        }
+    }
+
+    if (!found_answers) {
+        printf("No answers submitted yet for this question.\n");
+    }
+}
+
+void upvote_answer(Answer *answers, int a_count, User *users, int user_count, int a_id) {
+    for (int i = 0; i < a_count; i++) {
+        if (answers[i].answer_id == a_id) {
+            answers[i].upvotes++;
+            printf("Answer upvoted! Total upvotes: %d\n", answers[i].upvotes);
+
+            for (int j = 0; j < user_count; j++) {
+                if (strcmp(users[j].username, answers[i].author_username) == 0) {
+                    users[j].reputation += 5;
+                    printf("Author %s gained +5 reputation! (Total: %d)\n", users[j].username, users[j].reputation);
+                    save_users(users, user_count);
+                    break;
+                }
+            }
+            save_answers(answers, a_count);
+            return;
+        }
+    }
+    printf("Answer ID not found.\n");
+}
+
+void search_questions(Question *questions, int q_count, const char *keyword) {
+    printf("\n--- Search Results for '%s' ---\n", keyword);
+    int count = 0;
+    for (int i = 0; i < q_count; i++) {
+        if (strstr(questions[i].title, keyword) || strstr(questions[i].category, keyword)) {
+            printf("[%d] %s (Tag: %s)\n", questions[i].question_id, questions[i].title, questions[i].category);
             count++;
         }
     }
-    if (count == 0) printf("  No answers yet.\n");
+    if (!count) printf("No matching questions found.\n");
 }
 
-void answer_question() {
-    if (current_user_id == -1) {
-        printf("\n[ERROR] Login required!\n");
-        return;
-    }
-    int q_id, q_idx = -1;
-    printf("\nEnter Question ID to answer: ");
-    if (scanf("%d", &q_id) != 1) {
-        clear_input_buffer();
-        return;
-    }
-    clear_input_buffer();
+int compare_users_by_rep(const void *a, const void *b) {
+    User *u1 = (User *)a;
+    User *u2 = (User *)b;
+    return u2->reputation - u1->reputation;
+}
 
-    for (int i = 0; i < question_count; i++) {
-        if (questions[i].id == q_id) { q_idx = i; break; }
-    }
-    if (q_idx == -1) {
-        printf("\n[ERROR] Question not found!\n");
+void display_leaderboard(User *users, int user_count) {
+    if (user_count == 0) {
+        printf("No users to display.\n");
         return;
     }
 
-    ensure_answer_capacity();
+    User *sorted = (User*)malloc(user_count * sizeof(User));
+    memcpy(sorted, users, user_count * sizeof(User));
 
-    Answer ans;
-    ans.id = 500 + answer_count + 1;
-    ans.question_id = q_id;
-    ans.author_id = current_user_id;
-    ans.upvotes = 0;
+    qsort(sorted, user_count, sizeof(User), compare_users_by_rep);
 
+    printf("\n================ LEADERBOARD (qsort) ================\n");
     for (int i = 0; i < user_count; i++) {
-        if (users[i].id == current_user_id) {
-            strcpy(ans.author_name, users[i].username);
-            break;
-        }
+        printf("Rank %d: %s | Reputation: %d pts | Role: %s\n", 
+               i + 1, sorted[i].username, sorted[i].reputation, get_role_string(sorted[i].role));
     }
-
-    printf("Your Answer: ");
-    get_string_input(ans.body, TEXT_LEN);
-
-    answers[answer_count++] = ans;
-    questions[q_idx].answer_count++;
-
-    save_answers();
-    save_questions();
-    printf("\n[SUCCESS] Answer posted successfully!\n");
+    free(sorted);
 }
 
-void upvote_answer() {
-    if (current_user_id == -1) {
-        printf("\n[ERROR] Login required!\n");
-        return;
+void save_questions(Question *questions, int q_count) {
+    FILE *fp = fopen("questions.txt", "w");
+    if (!fp) return;
+    for (int i = 0; i < q_count; i++) {
+        fprintf(fp, "%d|%s|%s|%s\n", 
+                questions[i].question_id, questions[i].author_username, 
+                questions[i].title, questions[i].category);
     }
-    int a_id, a_idx = -1;
-    printf("\nEnter Answer ID to upvote: ");
-    if (scanf("%d", &a_id) != 1) {
-        clear_input_buffer();
-        return;
-    }
-    clear_input_buffer();
-
-    for (int i = 0; i < answer_count; i++) {
-        if (answers[i].id == a_id) { a_idx = i; break; }
-    }
-    if (a_idx == -1) {
-        printf("\n[ERROR] Answer not found!\n");
-        return;
-    }
-
-    answers[a_idx].upvotes++;
-    for (int i = 0; i < user_count; i++) {
-        if (users[i].id == answers[a_idx].author_id) {
-            users[i].reputation += 5;
-            break;
-        }
-    }
-
-    save_answers();
-    save_users();
-    printf("\n[SUCCESS] Upvoted Answer #%d (+5 Rep earned)!\n", a_id);
+    fclose(fp);
 }
 
-void search_questions() {
-    char keyword[NAME_LEN];
-    printf("\nEnter search keyword: ");
-    get_string_input(keyword, NAME_LEN);
-
-    printf("\n--- Search Results for '%s' ---\n", keyword);
-    int matches = 0;
-    for (int i = 0; i < question_count; i++) {
-        if (strstr(questions[i].title, keyword) != NULL || strstr(questions[i].category, keyword) != NULL) {
-            printf("ID: %d | [%s] %s (By %s) [Image: %s]\n", 
-                   questions[i].id, questions[i].category, questions[i].title, 
-                   questions[i].author_name, questions[i].image_path);
-            matches++;
+void load_questions(Question **questions, int *q_count, int *q_cap) {
+    FILE *fp = fopen("questions.txt", "r");
+    if (!fp) return;
+    Question temp;
+    while (fscanf(fp, "%d|%49[^|]|%149[^|]|%49[^\n]\n", 
+                  &temp.question_id, temp.author_username, temp.title, 
+                  temp.category) == 4) {
+        if (*q_count >= *q_cap) {
+            *q_cap *= 2;
+            *questions = (Question*)realloc(*questions, (*q_cap) * sizeof(Question));
         }
+        (*questions)[*q_count] = temp;
+        (*q_count)++;
     }
-    if (matches == 0) printf("No matching questions found.\n");
+    fclose(fp);
 }
 
-void admin_delete_question() {
-    int cur_idx = -1;
-    for(int i=0; i<user_count; i++) {
-        if(users[i].id == current_user_id) { cur_idx = i; break; }
+void save_answers(Answer *answers, int a_count) {
+    FILE *fp = fopen("answers.txt", "w");
+    if (!fp) return;
+    for (int i = 0; i < a_count; i++) {
+        fprintf(fp, "%d|%d|%s|%s|%s|%d\n", 
+                answers[i].answer_id, answers[i].question_id, answers[i].author_username, 
+                answers[i].body, answers[i].image_path, answers[i].upvotes);
     }
+    fclose(fp);
+}
 
-    if (cur_idx == -1 || users[cur_idx].role != ROLE_ADMIN) {
-        printf("\n[ACCESS DENIED] Admin privileges required!\n");
-        return;
+void load_answers(Answer **answers, int *a_count, int *a_cap) {
+    FILE *fp = fopen("answers.txt", "r");
+    if (!fp) return;
+    Answer temp;
+    while (fscanf(fp, "%d|%d|%49[^|]|%499[^|]|%255[^|]|%d\n", 
+                  &temp.answer_id, &temp.question_id, temp.author_username, 
+                  temp.body, temp.image_path, &temp.upvotes) == 6) {
+        if (*a_count >= *a_cap) {
+            *a_cap *= 2;
+            *answers = (Answer*)realloc(*answers, (*a_cap) * sizeof(Answer));
+        }
+        (*answers)[*a_count] = temp;
+        (*a_count)++;
     }
-
-    int q_id;
-    printf("\n--- Admin: Delete Question ---\nEnter Question ID to Delete: ");
-    if (scanf("%d", &q_id) != 1) { clear_input_buffer(); return; }
-    clear_input_buffer();
-
-    int q_idx = -1;
-    for (int i = 0; i < question_count; i++) {
-        if (questions[i].id == q_id) { q_idx = i; break; }
-    }
-
-    if (q_idx == -1) {
-        printf("\n[ERROR] Question not found!\n");
-        return;
-    }
-
-    for (int i = q_idx; i < question_count - 1; i++) {
-        questions[i] = questions[i + 1];
-    }
-    question_count--;
-    save_questions();
-    printf("\n[SUCCESS] Question ID %d removed by Admin.\n", q_id);
+    fclose(fp);
 }
