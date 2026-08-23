@@ -3,104 +3,143 @@
 #include "user.h"
 #include "qa.h"
 
-static void clear_input_buffer() {
-    int c;
-    while ((c = getchar()) != '\n' && c != EOF);
-}
-
 int main() {
-    init_user_system();
-    init_qa_system();
+    int user_cap = 5, user_count = 0;
+    User *users = (User*)malloc((size_t)user_cap * sizeof(User));
 
-    load_users();
-    load_questions();
-    load_answers();
+    int q_cap = 5, q_count = 0;
+    Question *questions = (Question*)malloc((size_t)q_cap * sizeof(Question));
 
+    int a_cap = 5, a_count = 0;
+    Answer *answers = (Answer*)malloc((size_t)a_cap * sizeof(Answer));
+
+    if (!users || !questions || !answers) {
+        fprintf(stderr, "Error: Initial memory allocation failed.\n");
+        free(users);
+        free(questions);
+        free(answers);
+        return EXIT_FAILURE;
+    }
+
+    load_users(&users, &user_count, &user_cap);
+    load_questions(&questions, &q_count, &q_cap);
+    load_answers(&answers, &a_count, &a_cap);
+
+    User *current_user = NULL;
     int choice;
+
     while (1) {
-        printf("\n=============================\n");
-        printf("   KNOWLEDGE SHARING PLATFORM  \n");
-        printf("===============================\n");
-
-        UserRole current_role = 0;
-        if (current_user_id != -1) {
-            for (int i = 0; i < user_count; i++) {
-                if (users[i].id == current_user_id) {
-                    current_role = users[i].role;
-                    const char *r_str = (current_role == ROLE_TEACHER) ? "Teacher" :
-                                        (current_role == ROLE_ADMIN) ? "Admin" : "Student";
-                    printf(" [Logged in: %s | Role: %s | Rep: %d]\n", users[i].username, r_str, users[i].reputation);
-                    break;
-                }
-            }
+        printf("\n==========================================\n");
+        printf("       KNOWLEDGE SHARING PLATFORM \n");
+        printf("============================================\n");
+        if (current_user) {
+            printf("[Status: Logged in as %s (%s)]\n", current_user->username, get_role_string(current_user->role));
         } else {
-            printf(" [Status: Guest Mode]\n");
+            printf("[Status: Guest Mode / Not Logged In]\n");
         }
-
-        printf("------------------------------------------------------\n");
-        printf("1. Register User\n2. Login\n3. Logout\n4. Browse All Questions\n");
-        printf("5. View Question Details\n6. Post Question\n7. Answer Question\n");
-        printf("8. Upvote Answer\n9. Search Questions\n10. Leaderboard (qsort)\n");
-        
-        if (current_role == ROLE_ADMIN) {
-            printf("--- ADMIN CONTROLS ---\n");
-            printf("11. [Admin] Delete User\n");
-            printf("12. [Admin] Change User Role\n");
-            printf("13. [Admin] Delete Question\n");
-            printf("14. Exit\n");
-        } else {
-            printf("11. Exit\n");
+        printf("--------------------------------------------------\n");
+        printf("1. Register User\n");
+        printf("2. Login\n");
+        printf("3. Logout\n");
+        printf("4. Browse All Questions\n");
+        printf("5. View Question Details & Answers\n");
+        printf("6. Post Question\n");
+        printf("7. Answer Question\n");
+        printf("8. Upvote Answer\n");
+        printf("9. Search Questions\n");
+        printf("10. Leaderboard (qsort)\n");
+        if (current_user && current_user->role == ROLE_ADMIN) {
+            printf("11. Admin Panel (Manage Users)\n");
         }
-        
-        printf("------------------------------------------------------\n");
-        printf("Choice: ");
+        printf("0. Exit\n");
+        printf("Select option: ");
 
         if (scanf("%d", &choice) != 1) {
-            clear_input_buffer();
-            continue;
+            printf("Invalid input. Exiting...\n");
+            break;
         }
-        clear_input_buffer();
 
-        if (current_role == ROLE_ADMIN) {
-            switch (choice) {
-                case 1: register_user(); break;
-                case 2: login_user(); break;
-                case 3: logout_user(); break;
-                case 4: list_all_questions(); break;
-                case 5: view_question_details(); break;
-                case 6: post_question(); break;
-                case 7: answer_question(); break;
-                case 8: upvote_answer(); break;
-                case 9: search_questions(); break;
-                case 10: view_leaderboard(); break;
-                case 11: admin_delete_user(); break;
-                case 12: admin_change_role(); break;
-                case 13: admin_delete_question(); break;
-                case 14:
-                    cleanup_user_system();
-                    cleanup_qa_system();
-                    exit(0);
-                default: printf("\nInvalid Choice!\n");
+        if (choice == 0) break;
+
+        switch (choice) {
+            case 1:
+                if (current_user) {
+                    printf("Please logout before registering another user.\n");
+                } else {
+                    register_user(&users, &user_count, &user_cap);
+                }
+                break;
+            case 2:
+                current_user = login_user(users, user_count);
+                break;
+            case 3:
+                current_user = NULL;
+                printf("Logged out successfully.\n");
+                break;
+            case 4:
+                browse_questions(questions, q_count);
+                break;
+            case 5: {
+                int q_id;
+                printf("Enter Question ID: ");
+                scanf("%d", &q_id);
+                view_question_details(questions, q_count, answers, a_count, q_id);
+                break;
             }
-        } else {
-            switch (choice) {
-                case 1: register_user(); break;
-                case 2: login_user(); break;
-                case 3: logout_user(); break;
-                case 4: list_all_questions(); break;
-                case 5: view_question_details(); break;
-                case 6: post_question(); break;
-                case 7: answer_question(); break;
-                case 8: upvote_answer(); break;
-                case 9: search_questions(); break;
-                case 10: view_leaderboard(); break;
-                case 11:
-                    cleanup_user_system();
-                    cleanup_qa_system();
-                    exit(0);
-                default: printf("\nInvalid Choice!\n");
+            case 6:
+                if (!current_user) {
+                    printf("Please login first to post a question.\n");
+                } else {
+                    post_question(&questions, &q_count, &q_cap, current_user->username);
+                }
+                break;
+            case 7: {
+                if (!current_user) {
+                    printf("Please login first to answer a question.\n");
+                } else {
+                    int q_id;
+                    printf("Enter Question ID to answer: ");
+                    scanf("%d", &q_id);
+                    post_answer(&answers, &a_count, &a_cap, questions, q_count, q_id, current_user->username);
+                }
+                break;
             }
+            case 8: {
+                int a_id;
+                printf("Enter Answer ID to upvote: ");
+                scanf("%d", &a_id);
+                if (!current_user) {
+                    printf("Please login first to upvote an answer.\n");
+                } else {
+                    upvote_answer(answers, a_count, users, user_count, a_id, current_user->username);
+                }
+                break;
+            }
+            case 9: {
+                char kw[50];
+                printf("Enter search keyword: ");
+                scanf("%49s", kw);
+                search_questions(questions, q_count, kw);
+                break;
+            }
+            case 10:
+                display_leaderboard(users, user_count);
+                break;
+            case 11:
+                if (current_user && current_user->role == ROLE_ADMIN) {
+                    admin_manage_users(users, user_count);
+                } else {
+                    printf("Unauthorized action!\n");
+                }
+                break;
+            default:
+                printf("Invalid choice!\n");
         }
     }
+
+    free(users);
+    free(questions);
+    free(answers);
+    printf("Goodbye!\n");
     return 0;
 }
