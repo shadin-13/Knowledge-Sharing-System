@@ -22,12 +22,11 @@ typedef struct {
     int upvotes;
 } Answer;
 
-// Function Prototypes
 void post_question(Question **questions, int *q_count, int *q_cap, const char *username);
-void post_answer(Answer **answers, int *a_count, int *a_cap, int q_id, const char *username);
+void post_answer(Answer **answers, int *a_count, int *a_cap, Question *questions, int q_count, int q_id, const char *username);
 void browse_questions(Question *questions, int q_count);
 void view_question_details(Question *questions, int q_count, Answer *answers, int a_count, int q_id);
-void upvote_answer(Answer *answers, int a_count, User *users, int user_count, int a_id);
+void upvote_answer(Answer *answers, int a_count, User *users, int user_count, int a_id, const char *voter_username);
 void search_questions(Question *questions, int q_count, const char *keyword);
 void display_leaderboard(User *users, int user_count);
 
