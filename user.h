@@ -1,50 +1,33 @@
 #ifndef USER_H
 #define USER_H
 
-#define NAME_LEN 50
-#define PASS_LEN 64
-#define PATH_LEN 100
-#define INITIAL_CAPACITY 10
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <ctype.h>
 
 typedef enum {
-    ROLE_STUDENT = 1,
+    ROLE_STUDENT = 0,
     ROLE_TEACHER,
     ROLE_ADMIN
-} UserRole;
+} Role;
 
 typedef struct {
-    int id;
-    char username[NAME_LEN];
+    int user_id;
+    char username[50];
     unsigned long password_hash;
+    Role role;
     int reputation;
-    UserRole role;
-    char profile_pic[PATH_LEN]; // Profile Picture Path
+    char profile_pic[256];
 } User;
 
-extern User *users;
-extern int user_count;
-extern int user_capacity;
-extern int current_user_id;
-
-void init_user_system();
-void cleanup_user_system();
-void load_users();
-void save_users();
-
-int find_user_by_name(const char *username);
-void register_user();
-void login_user();
-void logout_user();
-void view_leaderboard();
-
-// Admin Functions
-void admin_delete_user();
-void admin_change_role();
-
-typedef int (*CompareFunc)(const void *, const void *);
-void sort_users(CompareFunc cmp);
-
-// Password Hashing Helper
-unsigned long hash_password(const char *str);
+unsigned long hash_djb2(const char *str);
+const char* get_role_string(Role role);
+int is_valid_password(const char *pass);
+void register_user(User **users, int *user_count, int *capacity);
+User* login_user(User *users, int user_count);
+void save_users(User *users, int user_count);
+void load_users(User **users, int *user_count, int *capacity);
+void admin_manage_users(User *users, int user_count);
 
 #endif
